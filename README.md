@@ -5,7 +5,8 @@ embeds a state once, keeps action embeddings cached, and scores each candidate w
 same kind of decisions over images: screens, scenes, documents.
 
 The experimental design (E1 linear alignment, E2 vision projector, E3 VLM backbone) is in
-[docs/EXPERIMENTS.md](docs/EXPERIMENTS.md), and the reading list is in [docs/LITERATURE.md](docs/LITERATURE.md).
+[docs/EXPERIMENTS.md](docs/EXPERIMENTS.md), a guided tour of the code is in
+[docs/WALKTHROUGH.md](docs/WALKTHROUGH.md), and the reading list is in [docs/LITERATURE.md](docs/LITERATURE.md).
 
 ## Layout
 
