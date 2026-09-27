@@ -1,0 +1,32 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "clm-vision-probe"
+version = "0.1.0"
+description = "Probe-1: do CLM-8B's projection heads read Qwen3-VL-8B hidden states through a linear stitch?"
+requires-python = ">=3.10"
+# torch is pinned to the version in the RunPod image (runpod/pytorch:1.3.3-cu1281-torch2130-ubuntu2204),
+# so the Mac and the pod run the same library code. On the pod it is already installed.
+dependencies = [
+    "torch==2.13.0",
+    "torchvision",
+    "transformers==5.17.0",
+    "accelerate>=1.1.0",
+    "huggingface_hub[hf_xet]>=1.5.0",
+    "pillow>=10",
+    "pyarrow>=14",
+    "numpy>=1.24",
+    "pyyaml>=6",
+    "requests>=2.28",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8"]
+
+[tool.setuptools.packages.find]
+include = ["probe*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
