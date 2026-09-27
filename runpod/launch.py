@@ -59,6 +59,7 @@ def build_payload(run_name: str, a, public_key: str) -> dict:
         "volumeInGb": 0,                        # no persistent volume: nothing is billed once terminated
         "ports": ["22/tcp"],                    # full SSH (public IP + TCP), which scp/tar/rsync need
         "supportPublicIp": True,
+        "minRAMPerGPU": 32,                     # the default (8 GB) is too little to stage 16 GB of weights and embeddings
         "minDownloadMbps": a.min_download,      # 34 GB of weights over a slow link would burn GPU minutes
         "allowedCudaVersions": ["12.8", "12.9", "13.0"],
         "interruptible": a.spot,
