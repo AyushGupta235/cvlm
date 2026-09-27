@@ -69,6 +69,24 @@ def pool_last(hidden: torch.Tensor, attention_mask: torch.Tensor) -> torch.Tenso
     return hidden[torch.arange(hidden.shape[0], device=hidden.device), idx]
 
 
+def run_split_on_oom(compute: Callable[[list[int]], tuple[np.ndarray, int]], batch: list[int],
+                     device: str) -> list[tuple[list[int], np.ndarray, int]]:
+    """Run ``compute`` on a batch; if the accelerator runs out of memory, halve the batch and retry.
+
+    Returns (indices, outputs, tokens) pieces. A single item that still does not fit re-raises.
+    """
+    try:
+        out, tokens = compute(batch)
+        return [(batch, out, tokens)]
+    except torch.OutOfMemoryError:
+        if len(batch) == 1:
+            raise
+        free(device)
+        print(f"  [oom] batch of {len(batch)} did not fit; splitting", flush=True)
+        mid = len(batch) // 2
+        return run_split_on_oom(compute, batch[:mid], device) + run_split_on_oom(compute, batch[mid:], device)
+
+
 def pad_right(id_lists: list[list[int]], pad_id: int) -> tuple[torch.Tensor, torch.Tensor]:
     width = max(len(x) for x in id_lists)
     ids = torch.full((len(id_lists), width), pad_id, dtype=torch.long)
@@ -80,7 +98,7 @@ def pad_right(id_lists: list[list[int]], pad_id: int) -> tuple[torch.Tensor, tor
 
 
 class _Progress:
-    def __init__(self, label: str, total: int):
+    def __init__(self, label: str | None, total: int):
         self.label, self.total, self.done, self.tokens = label, total, 0, 0
         self.t0 = self.last = time.time()
 
@@ -88,6 +106,8 @@ class _Progress:
         self.done += n
         self.tokens += tokens
         now = time.time()
+        if self.label is None:
+            return
         if now - self.last > 15 or self.done == self.total:
             dt = max(now - self.t0, 1e-6)
             eta = (self.total - self.done) * dt / max(self.done, 1)
@@ -117,16 +137,20 @@ class _Base:
         raise NotImplementedError
 
     @torch.no_grad()
-    def embed_ids(self, id_lists: list[list[int]], label: str = "embed") -> np.ndarray:
+    def embed_ids(self, id_lists: list[list[int]], label: str | None = "embed") -> np.ndarray:
         out = np.zeros((len(id_lists), self.hidden_size), dtype=np.float32)
         prog = _Progress(label, len(id_lists))
         pad = self.tok.pad_token_id
-        for batch in length_batches([len(x) for x in id_lists], self.token_budget, self.max_batch):
+
+        def compute(batch):
             ids, mask = pad_right([id_lists[i] for i in batch], pad)
             ids, mask = ids.to(self.device), mask.to(self.device)
-            h = pool_last(self._forward(ids, mask), mask)
-            out[batch] = h.float().cpu().numpy()
-            prog.step(len(batch), int(mask.sum()))
+            return pool_last(self._forward(ids, mask), mask).float().cpu().numpy(), int(mask.sum())
+
+        for batch in length_batches([len(x) for x in id_lists], self.token_budget, self.max_batch):
+            for idx, h, tokens in run_split_on_oom(compute, batch, self.device):
+                out[idx] = h
+                prog.step(len(idx), tokens)
         if not np.isfinite(out).all():
             raise FloatingPointError(f"{label}: non-finite embeddings (try --set dtype=float32)")
         return l2(out)
@@ -143,8 +167,8 @@ class _Base:
     def batch_parity(self, texts: list[str]) -> float:
         """Min cosine between batched and one-at-a-time embeddings (padding must not leak in)."""
         ids = [self.ids(t, "tail") for t in texts]
-        batched = self.embed_ids(ids, "parity/batched")
-        single = np.concatenate([self.embed_ids([x], "parity/single") for x in ids])
+        batched = self.embed_ids(ids, None)
+        single = np.concatenate([self.embed_ids([x], None) for x in ids])
         return float((batched * single).sum(1).min())
 
 
@@ -198,16 +222,20 @@ class VLEncoder(_Base):
         batches = length_batches([n + per_image for n in lengths], self.token_budget, self.max_batch)
         prog = _Progress(label, len(texts))
         out = None
-        for batch in batches:
+
+        def compute(batch):
             imgs = [Image.open(image_paths[i]).convert("RGB") for i in batch]
             inputs = self._mm_inputs([texts[i] for i in batch], imgs, "right")
             mask = inputs.pop("attention_mask")
             h = pool_last(self._forward(inputs.pop("input_ids"), mask, **inputs), mask)
-            v = (head(h) if head is not None else h).float().cpu().numpy()
-            if out is None:
-                out = np.zeros((len(texts), v.shape[1]), dtype=np.float32)
-            out[batch] = v
-            prog.step(len(batch), int(mask.sum()))
+            return (head(h) if head is not None else h).float().cpu().numpy(), int(mask.sum())
+
+        for batch in batches:
+            for idx, v, tokens in run_split_on_oom(compute, batch, self.device):
+                if out is None:
+                    out = np.zeros((len(texts), v.shape[1]), dtype=np.float32)
+                out[idx] = v
+                prog.step(len(idx), tokens)
         if not np.isfinite(out).all():
             raise FloatingPointError(f"{label}: non-finite outputs (try --set dtype=float32)")
         return out
@@ -244,15 +272,20 @@ class VLEncoder(_Base):
     def caption(self, image_paths: list[str], prompt: str, max_new_tokens: int, batch_size: int) -> list[str]:
         from PIL import Image
         text = self._chat(prompt)
-        out: list[str] = []
         prog = _Progress("captions", len(image_paths))
-        for s in range(0, len(image_paths), batch_size):
-            paths = image_paths[s:s + batch_size]
-            imgs = [Image.open(p).convert("RGB") for p in paths]
-            inputs = self._mm_inputs([text] * len(paths), imgs, "left")
+        captions: dict[int, str] = {}
+
+        def compute(batch):
+            imgs = [Image.open(image_paths[i]).convert("RGB") for i in batch]
+            inputs = self._mm_inputs([text] * len(batch), imgs, "left")
             self.model.model.rope_deltas = None
             gen = self.model.generate(**inputs, max_new_tokens=max_new_tokens, do_sample=False)
             new = gen[:, inputs["input_ids"].shape[1]:]
-            out += [c.strip() for c in self.tok.batch_decode(new, skip_special_tokens=True)]
-            prog.step(len(paths), int(new.numel()))
-        return out
+            return self.tok.batch_decode(new, skip_special_tokens=True), int(new.numel())
+
+        for s in range(0, len(image_paths), batch_size):
+            for idx, caps, tokens in run_split_on_oom(compute, list(range(s, min(s + batch_size, len(image_paths)))),
+                                                      self.device):
+                captions.update({i: c.strip() for i, c in zip(idx, caps)})
+                prog.step(len(idx), tokens)
+        return [captions[i] for i in range(len(image_paths))]
