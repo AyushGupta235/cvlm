@@ -36,7 +36,34 @@ The stages are `prepare → embed-vl → embed-text → fit → eval → report`
 manifest and is skipped when its inputs haven't changed. So a run resumes after an interruption, and `fit`/`eval`
 can be re-run on a laptop against embeddings produced on a GPU.
 
-The 8B run (`configs/e1/full.yaml`) runs on a RunPod GPU. See [runpod/](runpod/) (in progress).
+## Running on a RunPod GPU
+
+Only the 8B forward passes need a GPU. Everything else (tests, dataset preparation, image extraction, and re-fitting
+or re-evaluating afterwards) runs on the laptop.
+
+```bash
+cp .env.example .env                     # add RUNPOD_API_KEY (console → Settings → API Keys)
+.venv/bin/python runpod/launch.py run --config configs/e1/full.yaml --dry-run    # prints the request, creates nothing
+.venv/bin/python runpod/launch.py run --config configs/e1/full.yaml              # asks before creating a paid pod
+.venv/bin/python runpod/launch.py list                                           # what is running
+.venv/bin/python runpod/launch.py terminate --all                                # panic button (cvlm-* pods only)
+```
+
+What `run` does:
+
+1. **Preflight (free):** tests pass, data is prepared locally, the image tag exists, and no `cvlm-<run>` pod already exists.
+2. **Create one pod:** RTX 4090 first, then 48 GB fallbacks; community cloud; `volumeInGb: 0`, so nothing is billed
+   after termination; at least 500 Mbps download, since 34 GB of weights over a slow link wastes GPU time.
+3. **Upload and run:** upload the non-ignored files plus `runs/<run>/` over SSH, run a CUDA smoke test on the tiny
+   models, then the config.
+4. **Stream and pull back:** stream the log, and pull each stage back as soon as its manifest appears. A preempted or
+   failed run resumes from those stages when re-run.
+5. **Terminate** on success, error, Ctrl-C, SIGTERM/SIGHUP, a price above `--max-price` (default $1/hr), or the
+   `--max-minutes` cap (default 90). A watchdog on the pod also deletes it at the cap if the laptop disappears. The
+   command runs under `caffeinate` so the Mac doesn't sleep mid-run.
+
+Expected cost of `configs/e1/full.yaml`: about 45–60 minutes on one RTX 4090, roughly $0.30–0.70. `--spot` halves
+that at the risk of preemption.
 
 ## Credentials
 
