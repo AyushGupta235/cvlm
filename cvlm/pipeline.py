@@ -23,7 +23,7 @@ import time
 import numpy as np
 
 from . import data as data_mod
-from . import evaluate, report, stitch
+from . import align, evaluate, report
 from .config import Config
 from .encoders import TextEncoder, VLEncoder, free, pick_device, pick_dtype
 
@@ -119,7 +119,7 @@ def run_embed_vl(cfg: Config, run_dir: str) -> dict:
                     cfg.max_batch, cfg.min_pixels, cfg.max_pixels)
     stats: dict = {"device": device, "hidden_size": enc.hidden_size, "truncated": {}}
 
-    # Does the VL tokenizer split text exactly like CLM's encoder? (Identity/stitch assume it.)
+    # Does the VL tokenizer split text exactly like CLM's encoder? (the identity map and the alignment assume it.)
     ref_tok = AutoTokenizer.from_pretrained(cfg.text_model)
     sample = [t["text"] for t in D["fit"][:2000]]
     same = [ref_tok(s, add_special_tokens=False)["input_ids"] == enc.tok(s, add_special_tokens=False)["input_ids"]
@@ -186,8 +186,8 @@ def run_fit(cfg: Config, run_dir: str) -> dict:
     D, E = load_data(run_dir), load_embeddings(run_dir)
     fit_rows, _ = _split(D)
     X, Y = E["vl/fit"][fit_rows], E["text/fit"][fit_rows]
-    maps, info = stitch.fit_all(X, Y, cfg.ridge_lambdas, seed=cfg.seed)
-    stitch.save(os.path.join(run_dir, "fit", "maps.npz"), maps)
+    maps, info = align.fit_all(X, Y, cfg.ridge_lambdas, seed=cfg.seed)
+    align.save(os.path.join(run_dir, "fit", "maps.npz"), maps)
     info["n_fit"] = int(fit_rows.sum())
     return info
 
@@ -195,7 +195,7 @@ def run_fit(cfg: Config, run_dir: str) -> dict:
 def run_eval(cfg: Config, run_dir: str) -> dict:
     from .scoring import Scorer
     D, E = load_data(run_dir), load_embeddings(run_dir)
-    maps = stitch.load(os.path.join(run_dir, "fit", "maps.npz"))
+    maps = align.load(os.path.join(run_dir, "fit", "maps.npz"))
     scorer = Scorer(cfg.head, cfg.head_ckpt)
     _, held = _split(D)
     sets = text_sets(D)

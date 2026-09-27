@@ -1,4 +1,4 @@
-"""python -m probe {prepare,embed-vl,embed-text,fit,eval,report,run} --config configs/<name>.yaml"""
+"""python -m cvlm {prepare,embed-vl,embed-text,fit,eval,report,run} --config configs/e1/<name>.yaml"""
 from __future__ import annotations
 
 import argparse
@@ -9,7 +9,7 @@ from .pipeline import STAGES, run_stage
 
 
 def main(argv: list[str] | None = None) -> None:
-    ap = argparse.ArgumentParser(prog="python -m probe", description=__doc__)
+    ap = argparse.ArgumentParser(prog="python -m cvlm", description=__doc__)
     ap.add_argument("stage", choices=STAGES + ["run"], help="one stage, or `run` for all of them in order")
     ap.add_argument("--config", required=True)
     ap.add_argument("--run-dir", help="default: runs/<config name>")

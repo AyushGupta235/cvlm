@@ -20,7 +20,7 @@ IMAGE_TOKENS = "<|vision_start|><|image_pad|><|vision_end|>"
 class Config:
     name: str
     text_model: str                      # the encoder CLM's heads were trained on (Qwen3-8B in the real run)
-    vl_model: str                        # the vision-language model we stitch from
+    vl_model: str                        # the vision-language model aligned into it
     head: str = "clm"                    # "clm": CLM projection heads; "raw": cosine in the encoder space (clm-raw)
     head_ckpt: str | None = None         # None: download the CLM-v0.1-8B reference head
     device: str = "auto"                 # auto: cuda > mps > cpu

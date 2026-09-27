@@ -1,4 +1,4 @@
-"""Stage `eval`: stitch fidelity, typed-decisions (text) and A-OKVQA (image) decisions.
+"""Stage `eval`: alignment fidelity, typed-decisions (text) and A-OKVQA (image) decisions.
 
 Naming: E["text/<set>"] are text-model embeddings (CLM's own encoder), E["vl/<set>"] are VL-model
 embeddings. ``vl_<map>`` conditions send the VL vector through that map into the text model's
@@ -10,7 +10,7 @@ from __future__ import annotations
 import numpy as np
 
 from .scoring import Scorer, softmax
-from .stitch import Map
+from .align import Map
 
 
 def bootstrap_ci(x: np.ndarray, n: int, seed: int) -> tuple[float, float]:

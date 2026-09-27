@@ -2,7 +2,7 @@
 
 Everything here is CPU-only and runs on the Mac before a pod exists.
 
-* fit.jsonl   unique texts both encoders embed; the stitch is fitted on ``split == "fit"``
+* fit.jsonl   unique texts both encoders embed; the alignment maps are fitted on ``split == "fit"``
               and fidelity is measured on ``split == "heldout"``. Sources: typed-decisions
               train (CLM state texts and option texts) and A-OKVQA train text (questions,
               choices, rationale + question). No image bytes are read for train.

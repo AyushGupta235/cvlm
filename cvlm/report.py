@@ -40,7 +40,7 @@ def write(cfg: Config, run_dir: str) -> str:
         raise FileNotFoundError(f"{mpath} missing; run the eval stage first")
     M = json.load(open(mpath))
     prep, vl, tx, fit = (_manifest(run_dir, s) for s in ("data", "vl", "text", "fit"))
-    L = [f"# Probe-1 report: `{cfg.name}`", ""]
+    L = [f"# CVLM · E1 linear alignment: `{cfg.name}`", ""]
     L += [f"- text model (CLM's encoder): `{cfg.text_model}`", f"- VL model: `{cfg.vl_model}`",
           f"- scorer: `{M['head']['kind']}` (logit scale {M['head']['scale']:.1f})",
           f"- data: {json.dumps(prep.get('stats', {}))}", ""]
@@ -55,7 +55,7 @@ def write(cfg: Config, run_dir: str) -> str:
           f"| stage seconds (VL / text) | {vl.get('seconds')} / {tx.get('seconds')} on {vl.get('stats', {}).get('device')} |",
           ""]
 
-    L += ["## Stitch fidelity (held-out texts, VL → text space)", "",
+    L += ["## Alignment fidelity (held-out texts, VL → CLM encoder space)", "",
           f"Ridge λ = {fit.get('stats', {}).get('ridge_lambda')} (relative to the mean eigenvalue), "
           f"fitted on {fit.get('stats', {}).get('n_fit')} texts.", "",
           "| map | cos (encoder space) | cos (after state head) | retrieval@1 |", "|---|---|---|---|"]
@@ -65,7 +65,7 @@ def write(cfg: Config, run_dir: str) -> str:
 
     td = M["typed_decisions"]
     types = sorted({t for r in td.values() for t in r["by_type"]})
-    L += ["## Typed decisions (text only): does the stitch preserve CLM's behaviour?", "",
+    L += ["## Typed decisions (text only): does the alignment preserve CLM's behaviour?", "",
           "`agree ref` is how often the condition picks the same option as the text-model path; "
           "`TV ref` is the total-variation distance between their distributions.", "",
           "| condition | acc vs gold | 95% CI | agree ref | TV ref | TV gold | " + " | ".join(types) + " |",
@@ -77,7 +77,7 @@ def write(cfg: Config, run_dir: str) -> str:
 
     ok = M["aokvqa"]
     L += ["## A-OKVQA (validation, multiple choice): decisions over images", "",
-          "Δ columns are paired differences in points with bootstrap 95% CIs. A stitched condition earns its keep "
+          "Δ columns are paired differences in points with bootstrap 95% CIs. An aligned condition earns its keep "
           "only if Δ vs question-only is clearly positive, and it is competitive only if Δ vs caption is near 0 or positive.", "",
           "| condition | acc | 95% CI | Δ vs question-only | Δ vs caption | what it is |", "|---|---|---|---|---|---|"]
     for name in [n for n in AOKVQA_ORDER if n in ok] + [n for n in ok if n not in AOKVQA_ORDER]:
@@ -96,7 +96,7 @@ def write(cfg: Config, run_dir: str) -> str:
           "CLM's vLLM pooling server. Every condition shares this path, so comparisons between conditions are "
           "apples-to-apples. Absolute `ref` numbers can differ slightly from served CLM.",
           "- The maps are fitted on text only. Image states are out of distribution for them by construction; "
-          "measuring how far off they are is the point of the probe.",
+          "measuring how far off they are is what E1 measures.",
           "- A-OKVQA answers are short and often guessable from the question; read vl_* against question_only, "
           "not against chance.", ""]
     path = os.path.join(run_dir, "report.md")

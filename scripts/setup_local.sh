@@ -18,7 +18,7 @@ uv pip install --python .venv/bin/python --no-deps -e third_party/CLM
 # Dedicated key for RunPod pods (passed to each pod as PUBLIC_KEY; nothing changes in your account).
 if [ ! -f "$HOME/.ssh/runpod_ed25519" ]; then
   mkdir -p "$HOME/.ssh" && chmod 700 "$HOME/.ssh"
-  ssh-keygen -t ed25519 -N "" -C "clm-vision-probe" -f "$HOME/.ssh/runpod_ed25519"
+  ssh-keygen -t ed25519 -N "" -C "cvlm" -f "$HOME/.ssh/runpod_ed25519"
 fi
 
 .venv/bin/python -c "import torch, transformers, clm.schema; print('torch', torch.__version__, '| mps', torch.backends.mps.is_available(), '| transformers', transformers.__version__)"
