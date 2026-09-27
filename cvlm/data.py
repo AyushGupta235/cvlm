@@ -53,16 +53,30 @@ def typed_decision_items(split: str) -> list[dict]:
     return items
 
 
+CACHE_DIR = os.environ.get("CVLM_CACHE", os.path.join(os.path.expanduser("~"), ".cache", "cvlm"))
+TEXT_COLUMNS = ["question_id", "question", "choices", "rationales"]
+
+
 def _aokvqa_text_rows(split: str) -> list[dict]:
-    """Text columns only, via column projection over the Hub, so image bytes are never downloaded."""
+    """Text columns only, via column projection over the Hub, so image bytes are never downloaded.
+
+    The projected read takes a few minutes, so the result is cached per pinned revision.
+    """
     repo, rev = AOKVQA
+    cached = os.path.join(CACHE_DIR, f"aokvqa-{rev[:12]}-{split}-text.parquet")
+    if os.path.exists(cached):
+        return pq.read_table(cached).to_pylist()
     fs = HfFileSystem()
-    files = sorted(fs.glob(f"datasets/{repo}@{rev}/data/{split}-*.parquet"))
-    rows = []
-    for f in files:
+    tables = []
+    for f in sorted(fs.glob(f"datasets/{repo}@{rev}/data/{split}-*.parquet")):
         with fs.open(f, "rb") as fh:
-            rows += pq.read_table(fh, columns=["question_id", "question", "choices", "rationales"]).to_pylist()
-    return rows
+            tables.append(pq.read_table(fh, columns=TEXT_COLUMNS))
+    import pyarrow as pa
+    table = pa.concat_tables(tables)
+    os.makedirs(CACHE_DIR, exist_ok=True)
+    pq.write_table(table, cached + ".part")
+    os.replace(cached + ".part", cached)
+    return table.to_pylist()
 
 
 def fit_corpus(cfg: Config) -> list[dict]:
