@@ -1,0 +1,18 @@
+# Tier 1: real small models on Apple Silicon. Qwen3-VL-2B is built on Qwen3-1.7B (both 2048-d,
+# 28 layers), the same relationship as Qwen3-VL-8B and Qwen3-8B, so identity and Procrustes mean
+# the same thing here as in the full run. Uses the raw scorer (the CLM head needs 4096-d input).
+# If memory runs out on an 8 GB Mac: --set text_model=Qwen/Qwen3-0.6B, or --device cpu.
+name: e1-local
+text_model: Qwen/Qwen3-1.7B
+vl_model: Qwen/Qwen3-VL-2B-Instruct
+head: raw
+device: auto              # mps
+dtype: auto               # float16 on mps
+fit_limit: 2000
+td_limit: 200
+img_limit: 100
+max_pixels: 200704        # 448 x 448, about 196 image tokens
+token_budget: 4096
+max_batch: 16
+generate_batch: 4
+caption_max_new_tokens: 64

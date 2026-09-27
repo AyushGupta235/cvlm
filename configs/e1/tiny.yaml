@@ -1,0 +1,15 @@
+# Tier 0: random-weight tiny models. Exercises every code path in about a minute on CPU; also the
+# on-pod CUDA smoke test. The numbers it produces are meaningless.
+name: e1-tiny
+text_model: trl-internal-testing/tiny-Qwen3ForCausalLM
+vl_model: trl-internal-testing/tiny-Qwen3VLForConditionalGeneration
+head: raw                 # tiny widths (8 and 16) cannot feed CLM's 4096-d head
+device: cpu
+dtype: float32
+fit_limit: 64
+td_limit: 20
+img_limit: 8
+max_pixels: 200704        # 448 x 448
+caption_max_new_tokens: 8
+generate_batch: 4
+bootstrap: 200

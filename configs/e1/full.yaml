@@ -1,0 +1,13 @@
+# Tier 2: the real E1 run on a RunPod GPU. Qwen3-8B is CLM-8B's frozen encoder; the reference
+# CLM-v0.1-8B projection heads score every condition.
+name: e1-full
+text_model: Qwen/Qwen3-8B
+vl_model: Qwen/Qwen3-VL-8B-Instruct
+head: clm
+device: cuda
+dtype: bfloat16
+fit_limit: 40000
+max_pixels: 409600        # 640 x 640; COCO images are 640 x 480, so about 300 image tokens
+token_budget: 32768
+max_batch: 64
+generate_batch: 16
