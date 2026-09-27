@@ -42,6 +42,19 @@ def free(device: str) -> None:
         torch.mps.empty_cache()
 
 
+def load_model(cls, repo: str, dtype: torch.dtype, device: str):
+    """Load a checkpoint in ``dtype`` onto ``device``.
+
+    CUDA: ``device_map`` puts the weights straight on the GPU, so no full copy is staged in CPU
+    RAM (pods can be short on it). MPS/CPU: cast on the CPU, then move. Qwen checkpoints are
+    bfloat16, and casting them on an M1's GPU (no native bfloat16) hangs in PyTorch's Metal
+    cast kernel; moving already-cast float16 tensors does not.
+    """
+    if device == "cuda":
+        return cls.from_pretrained(repo, dtype=dtype, device_map="cuda").eval()
+    return cls.from_pretrained(repo, dtype=dtype, device_map="cpu").to(device).eval()
+
+
 def l2(x: np.ndarray) -> np.ndarray:
     return x / (np.linalg.norm(x, axis=-1, keepdims=True) + 1e-12)
 
@@ -180,8 +193,7 @@ class TextEncoder(_Base):
         super().__init__(max_len, token_budget, max_batch)
         self.device = device
         self.tok = AutoTokenizer.from_pretrained(repo)
-        # device_map loads the weights straight onto the device: no full copy in CPU RAM first.
-        self.model = AutoModel.from_pretrained(repo, dtype=dtype, device_map=device).eval()
+        self.model = load_model(AutoModel, repo, dtype, device)
         self.hidden_size = self.model.config.hidden_size
 
     def _forward(self, input_ids, attention_mask):
@@ -198,7 +210,7 @@ class VLEncoder(_Base):
         self.device = device
         self.processor = AutoProcessor.from_pretrained(repo)
         self.tok = self.processor.tokenizer
-        self.model = Qwen3VLForConditionalGeneration.from_pretrained(repo, dtype=dtype, device_map=device).eval()
+        self.model = load_model(Qwen3VLForConditionalGeneration, repo, dtype, device)
         self.hidden_size = self.model.config.text_config.hidden_size
         self.size = {"longest_edge": max_pixels, "shortest_edge": min_pixels}
 
