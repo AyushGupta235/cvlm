@@ -61,6 +61,20 @@ still close enough that a map fitted on text alone lets CLM's existing heads sco
 **Cost.** Everything is developed on Apple Silicon with stand-in models (tiny random models, then Qwen3-1.7B with
 Qwen3-VL-2B). The 8B run takes about an hour on one 24 GB GPU (about $0.30–0.70 on RunPod).
 
+**Validation log.**
+- **2026-10-02, `configs/e1/local.yaml` on an 8 GB M1 (Qwen3-VL-2B, float16 on MPS), VL stage only.**
+  - `vl_generative`: **82.5%** (95% CI 70–92%, n=40; chance 25%). Image handling, the multiple-choice prompt and
+    letter extraction all work with real weights.
+  - `vl_raw`: **20%**, at chance. The mean cosine between *unrelated* texts is **0.948**, so the raw last-token space
+    is highly anisotropic ("massive activations"), and raw cosine can't separate answers. This is why CLM needs
+    trained heads, and identity and Procrustes inherit this geometry.
+  - All outputs finite in float16.
+  - Not run locally: captioning and the text-model stage. The machine went into heavy swap (15.6/16 GB) during
+    generation, at ~1 s of overhead per forward pass. Both paths pass on the tiny models, and the pod's CUDA smoke
+    test runs them before the 8B run.
+  - Found and fixed: casting bfloat16 checkpoints to float16 on the M1's GPU hangs in PyTorch's Metal cast kernel;
+    weights are now cast on the CPU first.
+
 ---
 
 ## E2: vision projector on frozen Qwen3-8B, text path unchanged (planned)
