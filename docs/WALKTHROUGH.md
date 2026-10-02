@@ -317,8 +317,8 @@ what makes the encoder tests meaningful: every shape, padding and image-token pa
 | text / VL model | tiny random Qwen3 / Qwen3-VL | Qwen3-1.7B / Qwen3-VL-2B | Qwen3-8B / Qwen3-VL-8B |
 | scorer | raw | raw | CLM-v0.1-8B heads |
 | device, dtype | cpu, float32 | mps, float16 | cuda, bfloat16 |
-| fit texts / TD questions / images | 64 / 20 / 8 | 2000 / 200 / 100 | 40000 / all (~2000) / 1145 |
-| runtime | ~1 min | ~35–65 min on an 8 GB M1 | ~45–60 min on an RTX 4090 |
+| fit texts / TD questions / images | 64 / 20 / 8 | 300 / 50 / 40 | 40000 / all (~2000) / 1145 |
+| runtime | ~1 min | ~30–35 min on an 8 GB M1 (~110 tok/s measured) | ~45–60 min on an RTX 4090 |
 
 `local` mirrors `full` structurally: Qwen3-VL-2B is built on Qwen3-1.7B the way Qwen3-VL-8B is built on Qwen3-8B,
 so identity and Procrustes mean the same thing in both.
